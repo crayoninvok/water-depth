@@ -473,19 +473,13 @@ def render_jetty_dashboard_section(
         fig_empty = go.Figure()
         if show_zones:
             fig_empty.add_hrect(
-                y0=0, y1=4.0, fillcolor="#fee2e2", opacity=0.45, layer="below", line_width=0,
-                annotation_text="🔴 Zona Surut (< 4.0m) — Tugboat TIDAK BISA MASUK",
-                annotation_position="bottom right", annotation_font_size=11, annotation_font_color="#991b1b"
+                y0=0, y1=4.0, fillcolor="#fee2e2", opacity=0.30, layer="below", line_width=0
             )
             fig_empty.add_hrect(
-                y0=4.0, y1=8.0, fillcolor="#dcfce7", opacity=0.35, layer="below", line_width=0,
-                annotation_text="🟢 Zona Operasional (4.0m - 8.0m) — Tugboat AMAN MASUK",
-                annotation_position="top right", annotation_font_size=11, annotation_font_color="#166534"
+                y0=4.0, y1=8.0, fillcolor="#dcfce7", opacity=0.25, layer="below", line_width=0
             )
             fig_empty.add_hrect(
-                y0=8.0, y1=12.0, fillcolor="#dbeafe", opacity=0.45, layer="below", line_width=0,
-                annotation_text="🔵 Zona Siaga Banjir (> 8.0m)",
-                annotation_position="top right", annotation_font_size=11, annotation_font_color="#1e40af"
+                y0=8.0, y1=12.0, fillcolor="#dbeafe", opacity=0.30, layer="below", line_width=0
             )
         if show_benchmark:
             fig_empty.add_hline(
@@ -549,24 +543,35 @@ def render_jetty_dashboard_section(
         else:
             df_plot["Trend_Linear"] = df_plot["Kedalaman Aktual (m)"]
             
+        # Label rapi untuk x-axis (Menjamin lebar batang selalu proporsional & teks angka selalu tampil jelas)
+        df_plot["DateTimeFormatted"] = df_plot["DateTime"].dt.strftime("%Y-%m-%d %H:%M")
+        chart_labels = []
+        seen_lbl = {}
+        for dt_val in df_plot["DateTime"]:
+            if pd.notna(dt_val):
+                base_lbl = dt_val.strftime("%d %b<br>%H:%M")
+            else:
+                base_lbl = "N/A"
+            if base_lbl in seen_lbl:
+                seen_lbl[base_lbl] += 1
+                chart_labels.append(f"{base_lbl} (#{seen_lbl[base_lbl]})")
+            else:
+                seen_lbl[base_lbl] = 1
+                chart_labels.append(base_lbl)
+        df_plot["ChartLabel"] = chart_labels
+            
         fig = go.Figure()
         
-        # 1. Zona Keselamatan
+        # 1. Zona Keselamatan (Transparansi elegan & bersih tanpa teks mengganggu)
         if show_zones:
             fig.add_hrect(
-                y0=0, y1=4.0, fillcolor="#fee2e2", opacity=0.45, layer="below", line_width=0,
-                annotation_text="🔴 Zona Surut (< 4.0m) — Tugboat TIDAK BISA MASUK",
-                annotation_position="bottom right", annotation_font_size=11, annotation_font_color="#991b1b"
+                y0=0, y1=4.0, fillcolor="#fee2e2", opacity=0.30, layer="below", line_width=0
             )
             fig.add_hrect(
-                y0=4.0, y1=8.0, fillcolor="#dcfce7", opacity=0.35, layer="below", line_width=0,
-                annotation_text="🟢 Zona Operasional (4.0m - 8.0m) — Tugboat AMAN MASUK & BEROPERASI",
-                annotation_position="top right", annotation_font_size=11, annotation_font_color="#166534"
+                y0=4.0, y1=8.0, fillcolor="#dcfce7", opacity=0.25, layer="below", line_width=0
             )
             fig.add_hrect(
-                y0=8.0, y1=14.0, fillcolor="#dbeafe", opacity=0.45, layer="below", line_width=0,
-                annotation_text="🔵 Zona Siaga Banjir (> 8.0m) — Debit & Arus Kuat",
-                annotation_position="top right", annotation_font_size=11, annotation_font_color="#1e40af"
+                y0=8.0, y1=14.0, fillcolor="#dbeafe", opacity=0.30, layer="below", line_width=0
             )
         
         # 2. Trace Kedalaman Aktual & Penentuan Skema Warna
@@ -593,47 +598,44 @@ def render_jetty_dashboard_section(
             line_trace_color = "#ef4444"
             line_marker_color = "#b91c1c"
 
+        custom_data_cols = df_plot[["Status", "Titik Pantau", "Petugas", "Keterangan", "DateTimeFormatted"]].values
+
         if "Bar Chart" in chart_type:
-            bar_kwargs = {}
-            if len(df_plot) == 1:
-                bar_kwargs["width"] = [86400000 * 0.4]
-                
             fig.add_trace(go.Bar(
-                x=df_plot["DateTime"],
+                x=df_plot["ChartLabel"],
                 y=df_plot["Kedalaman Aktual (m)"],
                 name=f"Kedalaman {cfg['name']} (m)",
                 marker=bar_marker_dict,
                 text=[f"{v:.2f} m" for v in df_plot["Kedalaman Aktual (m)"]],
                 textposition="outside",
-                textfont=dict(size=12, color="#0f172a"),
+                textfont=dict(size=11, color="#0f172a"),
                 hovertemplate=(
-                    "<b>Tanggal & Jam:</b> %{x|%Y-%m-%d %H:%M}<br>" +
+                    "<b>Tanggal & Jam:</b> %{customdata[4]}<br>" +
                     "<b>Kedalaman Aktual:</b> %{y:.2f} m<br>" +
                     "<b>Status:</b> %{customdata[0]}<br>" +
                     "<b>Titik:</b> %{customdata[1]}<br>" +
                     "<b>Karyawan Input:</b> %{customdata[2]}<br>" +
                     "<b>Keterangan:</b> %{customdata[3]}<extra></extra>"
                 ),
-                customdata=df_plot[["Status", "Titik Pantau", "Petugas", "Keterangan"]].values,
-                **bar_kwargs
+                customdata=custom_data_cols
             ))
         else:
             fig.add_trace(go.Scatter(
-                x=df_plot["DateTime"],
+                x=df_plot["ChartLabel"],
                 y=df_plot["Kedalaman Aktual (m)"],
                 mode="lines+markers",
                 name=f"Kedalaman {cfg['name']} (m)",
                 line=dict(color=line_trace_color, width=3),
                 marker=dict(size=8, color=line_marker_color, symbol="circle"),
                 hovertemplate=(
-                    "<b>Tanggal & Jam:</b> %{x|%Y-%m-%d %H:%M}<br>" +
+                    "<b>Tanggal & Jam:</b> %{customdata[4]}<br>" +
                     "<b>Kedalaman Aktual:</b> %{y:.2f} m<br>" +
                     "<b>Status:</b> %{customdata[0]}<br>" +
                     "<b>Titik:</b> %{customdata[1]}<br>" +
                     "<b>Karyawan Input:</b> %{customdata[2]}<br>" +
                     "<b>Keterangan:</b> %{customdata[3]}<extra></extra>"
                 ),
-                customdata=df_plot[["Status", "Titik Pantau", "Petugas", "Keterangan"]].values
+                customdata=custom_data_cols
             ))
         
         # 3. Garis Tolak Ukur 4.0m
@@ -653,22 +655,22 @@ def render_jetty_dashboard_section(
         if show_trend:
             if "Moving Average" in trend_type:
                 fig.add_trace(go.Scatter(
-                    x=df_plot["DateTime"],
+                    x=df_plot["ChartLabel"],
                     y=df_plot["MA_7d"],
                     mode="lines+markers",
                     name="Tren Moving Average (7 Hari)",
-                    line=dict(color="#f59e0b", width=3.5, dash="dash"),
-                    marker=dict(size=7, color="#d97706", symbol="diamond"),
+                    line=dict(color="#f59e0b", width=3, dash="dash"),
+                    marker=dict(size=6, color="#d97706", symbol="diamond"),
                     hovertemplate="<b>Tren MA:</b> %{y:.2f} m<extra></extra>"
                 ))
             else:
                 fig.add_trace(go.Scatter(
-                    x=df_plot["DateTime"],
+                    x=df_plot["ChartLabel"],
                     y=df_plot["Trend_Linear"],
                     mode="lines+markers",
                     name="Tren Regresi Linier",
-                    line=dict(color="#db2777", width=3.5, dash="dash"),
-                    marker=dict(size=7, color="#be185d", symbol="square"),
+                    line=dict(color="#db2777", width=3, dash="dash"),
+                    marker=dict(size=6, color="#be185d", symbol="square"),
                     hovertemplate="<b>Garis Regresi:</b> %{y:.2f} m<extra></extra>"
                 ))
                 
@@ -680,9 +682,13 @@ def render_jetty_dashboard_section(
             y_max = np.ceil((data_max + 0.35) * 10) / 10
             dtick_val = 0.10
         elif "Detail Fokus" in scale_mode:
-            y_min = max(0.0, np.floor((data_min - 0.40) * 5) / 5)
+            # Pastikan garis tolak ukur 4.0m SELALU masuk di rentang tampilan grafik
+            if show_benchmark:
+                y_min = max(0.0, min(3.50, np.floor((data_min - 0.40) * 5) / 5))
+            else:
+                y_min = max(0.0, np.floor((data_min - 0.40) * 5) / 5)
             y_max = max(4.30, np.ceil((data_max + 0.60) * 5) / 5)
-            dtick_val = 0.20
+            dtick_val = 0.50 if (y_max - y_min) > 4.5 else 0.20
         else:
             y_min = 0.0
             y_max = max(10.0, data_max + 1.8)
@@ -690,14 +696,11 @@ def render_jetty_dashboard_section(
         
         xaxis_config = dict(
             title="Tanggal & Waktu Pengukuran",
+            type="category",
             showgrid=True,
             gridcolor="#f1f5f9",
-            tickformat="%d %b\n%H:%M"
+            tickangle=-35 if len(df_plot) > 15 else 0
         )
-        if len(df_plot) == 1 and "Bar Chart" in chart_type:
-            dt0 = df_plot["DateTime"].iloc[0]
-            if pd.notna(dt0):
-                xaxis_config["range"] = [dt0 - pd.Timedelta(days=1), dt0 + pd.Timedelta(days=1)]
                 
         fig.update_layout(
             title=dict(
@@ -714,7 +717,7 @@ def render_jetty_dashboard_section(
                 dtick=dtick_val,
                 tickformat=".2f"
             ),
-            bargap=0.3,
+            bargap=0.25,
             hovermode="x unified",
             legend=dict(
                 orientation="h",
@@ -726,7 +729,7 @@ def render_jetty_dashboard_section(
                 bordercolor="#e2e8f0",
                 borderwidth=1
             ),
-            margin=dict(l=40, r=40, t=60, b=40),
+            margin=dict(l=40, r=40, t=60, b=50),
             height=560,
             template="plotly_white"
         )
@@ -810,7 +813,7 @@ with tab_viz:
         with c_opt3:
             show_zones = st.checkbox("Zona Keselamatan", value=True)
         with c_opt4:
-            trend_type = st.radio("Tipe Tren:", ["Moving Average (7 Hari)", "Regresi Linier"], horizontal=True)
+            trend_type = st.radio("Tipe Tren:", ["Regresi Linier", "Moving Average (7 Hari)"], index=0, horizontal=True)
 
         st.markdown("---")
         c_sc1, c_sc2 = st.columns([2.5, 2.5])
