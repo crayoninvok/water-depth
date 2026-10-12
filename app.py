@@ -1,5 +1,6 @@
 import os
 import io
+import base64
 import datetime
 import numpy as np
 import pandas as pd
@@ -9,12 +10,22 @@ import streamlit as st
 
 import data_manager
 
+# Helper Base64 Logo Loader
+def get_base64_image(image_path):
+    if os.path.exists(image_path):
+        with open(image_path, "rb") as f:
+            return base64.b64encode(f.read()).decode()
+    return ""
+
+LOGO_PATH = "assets/logo.png"
+LOGO_B64 = get_base64_image(LOGO_PATH)
+
 # ==========================================================
 # KONFIGURASI HALAMAN STREAMLIT
 # ==========================================================
 st.set_page_config(
-    page_title="Monitoring Kedalaman Air Senyiur",
-    page_icon="🌊",
+    page_title="Monitoring Kedalaman Air Senyiur — PT Batara Dharma Persada",
+    page_icon=LOGO_PATH if os.path.exists(LOGO_PATH) else "🌊",
     layout="wide",
     initial_sidebar_state="expanded"
 )
@@ -140,11 +151,13 @@ df_raw, source_info = data_manager.load_data()
 # SIDEBAR
 # ==========================================================
 with st.sidebar:
-    st.image("https://images.unsplash.com/photo-1544620347-c4fd4a3d5957?auto=format&fit=crop&w=400&q=80", 
-             caption="Sungai Senyiur — Navigasi & Monitoring TMA", width="stretch")
-    
+    if os.path.exists(LOGO_PATH):
+        st.image(LOGO_PATH, width="stretch")
+    else:
+        st.markdown("### 🏢 **PT Batara Dharma Persada**")
+        
     st.markdown("### 🌊 **Sungai Senyiur Monitoring**")
-    st.caption("Pencatatan & Analisis Kedalaman Air Sungai (TMA / Draft Tongkang)")
+    st.caption("PT Batara Dharma Persada — Pemantauan Kedalaman Air & Tugboat")
     
     st.markdown("---")
     
@@ -227,21 +240,35 @@ analytics = data_manager.calculate_analytics(df_filtered if not df_filtered.empt
 # ==========================================================
 # MAIN HEADER
 # ==========================================================
-st.markdown("""
-<div class="main-header">
-    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap;">
-        <div>
-            <h1>🌊 Pemantauan Kedalaman Air Sungai Senyiur</h1>
-            <p>Tolak Ukur Tetap Operasional: <b>4,0 Meter</b> (Batas Minimum Tugboat Masuk Sungai) — Database Tunggal Google Spreadsheet Online</p>
-        </div>
-        <div style="margin-top: 8px;">
-            <span style="background: rgba(255,255,255,0.18); padding: 6px 14px; border-radius: 20px; font-size: 0.85rem; font-weight: 600;">
-                📍 Titik Pantau: KM 0 Jetty Senyiur
-            </span>
-        </div>
-    </div>
-</div>
-""", unsafe_allow_html=True)
+header_logo_tag = ""
+if LOGO_B64:
+    header_logo_tag = (
+        f'<div style="background:#ffffff;padding:6px 14px;border-radius:12px;'
+        f'box-shadow:0 4px 14px rgba(0,0,0,0.18);display:inline-flex;align-items:center;">'
+        f'<img src="data:image/png;base64,{LOGO_B64}" style="height:44px;object-fit:contain;" alt="PT Batara Dharma Persada" />'
+        f'</div>'
+    )
+
+header_html = (
+    f'<div class="main-header">'
+    f'<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:16px;">'
+    f'<div style="display:flex;align-items:center;gap:18px;flex-wrap:wrap;">'
+    f'{header_logo_tag}'
+    f'<div>'
+    f'<h1 style="color:#ffffff;margin:0;font-size:1.85rem;font-weight:800;letter-spacing:-0.5px;">🌊 Pemantauan Kedalaman Air Sungai Senyiur</h1>'
+    f'<p style="color:#b0c4de;margin:4px 0 0 0;font-size:0.95rem;"><b>PT Batara Dharma Persada</b> — Tolak Ukur Tetap Operasional: <b>4,0 Meter</b> (Batas Minimum Tugboat Masuk)</p>'
+    f'</div>'
+    f'</div>'
+    f'<div>'
+    f'<span style="background:rgba(255,255,255,0.18);padding:8px 16px;border-radius:20px;font-size:0.88rem;font-weight:700;color:#ffffff;">'
+    f'📍 KM 0 Jetty Senyiur'
+    f'</span>'
+    f'</div>'
+    f'</div>'
+    f'</div>'
+)
+
+st.markdown(header_html, unsafe_allow_html=True)
 
 # ==========================================================
 # KPI METRICS CARDS
@@ -341,14 +368,16 @@ tab_viz, tab_input, tab_table, tab_settings = st.tabs([
 with tab_viz:
     st.markdown("### 📊 Analisis Grafik Kedalaman Sungai Senyiur")
     
-    with st.expander("🛠️ Opsi Tampilan Grafik (Tolak Ukur, Garis Tren & Zona Keamanan)", expanded=False):
-        c_opt1, c_opt2, c_opt3, c_opt4 = st.columns(4)
+    with st.expander("🛠️ Opsi Tampilan Grafik (Model Grafik, Tolak Ukur & Garis Tren)", expanded=False):
+        c_opt0, c_opt1, c_opt2, c_opt3, c_opt4 = st.columns([1.5, 1.2, 1, 1, 1.3])
+        with c_opt0:
+            chart_type = st.radio("Model Visualisasi:", ["📊 Bar Chart (Diagram Batang)", "📈 Line Chart (Garis)"], index=0, horizontal=True)
         with c_opt1:
-            show_benchmark = st.checkbox("Tampilkan Tolak Ukur 4.0m (Batas Tugboat)", value=True)
+            show_benchmark = st.checkbox("Tolak Ukur 4.0m (Tugboat)", value=True)
         with c_opt2:
             show_trend = st.checkbox("Tampilkan Garis Tren", value=True)
         with c_opt3:
-            show_zones = st.checkbox("Tampilkan Zona Batas Keselamatan", value=True)
+            show_zones = st.checkbox("Zona Keselamatan", value=True)
         with c_opt4:
             trend_type = st.radio("Tipe Tren:", ["Moving Average (7 Hari)", "Regresi Linier"], horizontal=True)
 
@@ -411,24 +440,67 @@ with tab_viz:
                 annotation_font_color="#1e40af"
             )
         
-        # 2. Garis Kedalaman Aktual
-        fig.add_trace(go.Scatter(
-            x=df_plot["DateTime"],
-            y=df_plot["Kedalaman Aktual (m)"],
-            mode="lines+markers",
-            name="Kedalaman Aktual (m)",
-            line=dict(color="#0284c7", width=3),
-            marker=dict(size=8, color="#0369a1", symbol="circle"),
-            hovertemplate=(
-                "<b>Tanggal & Jam:</b> %{x|%Y-%m-%d %H:%M}<br>" +
-                "<b>Kedalaman Aktual:</b> %{y:.2f} m<br>" +
-                "<b>Status:</b> %{customdata[0]}<br>" +
-                "<b>Titik:</b> %{customdata[1]}<br>" +
-                "<b>Karyawan Input:</b> %{customdata[2]}<br>" +
-                "<b>Keterangan:</b> %{customdata[3]}<extra></extra>"
-            ),
-            customdata=df_plot[["Status", "Titik Pantau", "Petugas", "Keterangan"]].values
-        ))
+        # Penentuan Warna Batang Berdasarkan Ambang Batas 4.0m
+        bar_colors = []
+        bar_borders = []
+        for val in df_plot["Kedalaman Aktual (m)"]:
+            if val < 4.0:
+                bar_colors.append("#ef4444")    # Merah: Surut (< 4.0m)
+                bar_borders.append("#b91c1c")
+            elif val <= 8.0:
+                bar_colors.append("#10b981")   # Hijau: Aman (4.0 - 8.0m)
+                bar_borders.append("#047857")
+            else:
+                bar_colors.append("#3b82f6")   # Biru: Siaga Banjir (> 8.0m)
+                bar_borders.append("#1d4ed8")
+
+        # 2. Trace Kedalaman Aktual (Bar Chart atau Line Chart)
+        if "Bar Chart" in chart_type:
+            bar_kwargs = {}
+            if len(df_plot) == 1:
+                bar_kwargs["width"] = [86400000 * 0.4]
+                
+            fig.add_trace(go.Bar(
+                x=df_plot["DateTime"],
+                y=df_plot["Kedalaman Aktual (m)"],
+                name="Kedalaman Aktual (m)",
+                marker=dict(
+                    color=bar_colors,
+                    line=dict(color=bar_borders, width=1.5),
+                    opacity=0.9
+                ),
+                text=[f"{v:.2f} m" for v in df_plot["Kedalaman Aktual (m)"]],
+                textposition="outside",
+                textfont=dict(size=12, color="#0f172a"),
+                hovertemplate=(
+                    "<b>Tanggal & Jam:</b> %{x|%Y-%m-%d %H:%M}<br>" +
+                    "<b>Kedalaman Aktual:</b> %{y:.2f} m<br>" +
+                    "<b>Status:</b> %{customdata[0]}<br>" +
+                    "<b>Titik:</b> %{customdata[1]}<br>" +
+                    "<b>Karyawan Input:</b> %{customdata[2]}<br>" +
+                    "<b>Keterangan:</b> %{customdata[3]}<extra></extra>"
+                ),
+                customdata=df_plot[["Status", "Titik Pantau", "Petugas", "Keterangan"]].values,
+                **bar_kwargs
+            ))
+        else:
+            fig.add_trace(go.Scatter(
+                x=df_plot["DateTime"],
+                y=df_plot["Kedalaman Aktual (m)"],
+                mode="lines+markers",
+                name="Kedalaman Aktual (m)",
+                line=dict(color="#0284c7", width=3),
+                marker=dict(size=8, color="#0369a1", symbol="circle"),
+                hovertemplate=(
+                    "<b>Tanggal & Jam:</b> %{x|%Y-%m-%d %H:%M}<br>" +
+                    "<b>Kedalaman Aktual:</b> %{y:.2f} m<br>" +
+                    "<b>Status:</b> %{customdata[0]}<br>" +
+                    "<b>Titik:</b> %{customdata[1]}<br>" +
+                    "<b>Karyawan Input:</b> %{customdata[2]}<br>" +
+                    "<b>Keterangan:</b> %{customdata[3]}<extra></extra>"
+                ),
+                customdata=df_plot[["Status", "Titik Pantau", "Petugas", "Keterangan"]].values
+            ))
         
         # 3. Garis Tolak Ukur 4.0m
         if show_benchmark:
@@ -443,39 +515,48 @@ with tab_viz:
                 annotation_font_size=11
             )
             
-        # 4. Garis Tren
+        # 4. Garis Tren (Superimposed Line Trace)
         if show_trend:
             if "Moving Average" in trend_type:
                 fig.add_trace(go.Scatter(
                     x=df_plot["DateTime"],
                     y=df_plot["MA_7d"],
-                    mode="lines",
+                    mode="lines+markers",
                     name="Tren Moving Average (7 Hari)",
-                    line=dict(color="#7c3aed", width=2.5, dash="dot"),
+                    line=dict(color="#f59e0b", width=3.5, dash="dash"),
+                    marker=dict(size=7, color="#d97706", symbol="diamond"),
                     hovertemplate="<b>Tren MA:</b> %{y:.2f} m<extra></extra>"
                 ))
             else:
                 fig.add_trace(go.Scatter(
                     x=df_plot["DateTime"],
                     y=df_plot["Trend_Linear"],
-                    mode="lines",
+                    mode="lines+markers",
                     name="Tren Regresi Linier",
-                    line=dict(color="#db2777", width=2.5, dash="dashdot"),
+                    line=dict(color="#db2777", width=3.5, dash="dash"),
+                    marker=dict(size=7, color="#be185d", symbol="square"),
                     hovertemplate="<b>Garis Regresi:</b> %{y:.2f} m<extra></extra>"
                 ))
                 
-        y_max = max(10.0, df_plot["Kedalaman Aktual (m)"].max() + 1.5)
+        y_max = max(10.0, df_plot["Kedalaman Aktual (m)"].max() + 1.8)
+        
+        xaxis_config = dict(
+            title="Tanggal & Waktu Pengukuran",
+            showgrid=True,
+            gridcolor="#f1f5f9",
+            tickformat="%d %b\n%H:%M"
+        )
+        if len(df_plot) == 1 and "Bar Chart" in chart_type:
+            dt0 = df_plot["DateTime"].iloc[0]
+            if pd.notna(dt0):
+                xaxis_config["range"] = [dt0 - pd.Timedelta(days=1), dt0 + pd.Timedelta(days=1)]
+                
         fig.update_layout(
             title=dict(
-                text="<b>Grafik Kedalaman Air Sungai Senyiur vs Tolak Ukur Tugboat (4.0 m)</b>",
+                text="<b>Grafik Kedalaman Air Sungai Senyiur (Bar Chart & Tren) vs Tolak Ukur Tugboat (4.0 m)</b>",
                 font=dict(size=17, color="#0f172a")
             ),
-            xaxis=dict(
-                title="Tanggal & Waktu Pengukuran",
-                showgrid=True,
-                gridcolor="#f1f5f9",
-                tickformat="%d %b\n%H:%M"
-            ),
+            xaxis=xaxis_config,
             yaxis=dict(
                 title="Kedalaman Air (meter)",
                 showgrid=True,
@@ -483,6 +564,7 @@ with tab_viz:
                 range=[0, y_max],
                 dtick=1.0
             ),
+            bargap=0.3,
             hovermode="x unified",
             legend=dict(
                 orientation="h",
@@ -777,7 +859,7 @@ with tab_settings:
 st.markdown("---")
 st.markdown("""
 <div style="text-align: center; color: #94a3b8; font-size: 0.85rem; padding: 10px 0;">
-    🌊 <b>Sistem Pemantauan Kedalaman Air Sungai Senyiur</b> — 100% Database Tunggal Google Spreadsheet
+    🌊 <b>Sistem Pemantauan Kedalaman Air Sungai Senyiur</b> — <b>PT Batara Dharma Persada</b> | Database Tunggal Google Spreadsheet
 </div>
 """, unsafe_allow_html=True)
 
