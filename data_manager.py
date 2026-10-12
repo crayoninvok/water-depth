@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import os
 import io
 import urllib.request
@@ -86,72 +88,85 @@ def create_empty_template() -> pd.DataFrame:
     """Menghasilkan DataFrame kosong dengan struktur kolom standar"""
     return pd.DataFrame(columns=COLUMNS)
 
-_CACHE_GSHEET: dict[str, pd.DataFrame] = {}
+_CACHE_GSHEET = {}
 
-def fetch_gsheet_public(jetty_key: str = "senyiur") -> pd.DataFrame | None:
+def fetch_gsheet_public(jetty_key: str = "senyiur", *args, **kwargs) -> pd.DataFrame | None:
     """Mengambil data langsung dari Google Spreadsheet online berdasarkan tab Jetty masing-masing"""
-    cfg = JETTY_CONFIG.get(jetty_key, JETTY_CONFIG["senyiur"])
-    gid = cfg["sheet_gid"]
-    benchmark = cfg["plan_benchmark"]
-    csv_url = f"https://docs.google.com/spreadsheets/d/{GSHEET_ID}/export?format=csv&gid={gid}"
-    
-    # Coba via requests dengan retries (sangat tahan terhadap SSL handshake timeout)
-    for attempt in range(2):
-        try:
-            resp = requests.get(csv_url, headers={"User-Agent": "Mozilla/5.0"}, timeout=12)
-            if resp.status_code == 200:
-                content = resp.content
-                if len(content) > 5:
-                    df_raw = pd.read_csv(io.BytesIO(content), header=None)
-                    if not df_raw.empty and df_raw.shape[1] >= 8:
-                        first_cell = str(df_raw.iloc[0, 0]).strip().lower()
-                        second_cell = str(df_raw.iloc[0, 1]).strip().lower()
-                        
-                        # Cek apakah baris 0 adalah Header
-                        if first_cell == "id" or "tanggal" in second_cell:
-                            df = pd.read_csv(io.BytesIO(content))
-                        else:
-                            # Baris 0 adalah data langsung
-                            df = df_raw.copy()
-                            df.columns = COLUMNS[:df.shape[1]]
-                        
-                        # Normalisasi nilai desimal
-                        if "Kedalaman Aktual (m)" in df.columns:
-                            df["Kedalaman Aktual (m)"] = df["Kedalaman Aktual (m)"].apply(safe_float)
-                        if "Plan Kedalaman (m)" in df.columns:
-                            df["Plan Kedalaman (m)"] = df["Plan Kedalaman (m)"].apply(lambda x: safe_float(x, default=benchmark))
-                        else:
-                            df["Plan Kedalaman (m)"] = benchmark
-                            
-                        if "Tanggal" in df.columns:
-                            df["Tanggal"] = pd.to_datetime(df["Tanggal"], errors="coerce").dt.strftime("%Y-%m-%d").fillna(df["Tanggal"].astype(str))
-                            
-                        _CACHE_GSHEET[jetty_key] = df
-                        return df
-                elif len(content) == 0:
-                    # Tab sheet masih kosong / baru dibuat
-                    return create_empty_template()
-        except Exception as e:
-            if attempt == 1:
-                print(f"Error fetching Google Sheet for {jetty_key} (gid={gid}): {e}")
-
-    # Fallback ke cache jika terjadi kendala jaringan sementara
-    if jetty_key in _CACHE_GSHEET and _CACHE_GSHEET[jetty_key] is not None:
-        return _CACHE_GSHEET[jetty_key]
+    try:
+        if not jetty_key and args:
+            jetty_key = args[0]
+        cfg = JETTY_CONFIG.get(str(jetty_key).lower().strip(), JETTY_CONFIG["senyiur"])
+        gid = cfg["sheet_gid"]
+        benchmark = cfg["plan_benchmark"]
+        csv_url = f"https://docs.google.com/spreadsheets/d/{GSHEET_ID}/export?format=csv&gid={gid}"
         
-    return None
+        # Coba via requests dengan retries (sangat tahan terhadap SSL handshake timeout)
+        for attempt in range(2):
+            try:
+                resp = requests.get(csv_url, headers={"User-Agent": "Mozilla/5.0"}, timeout=12)
+                if resp.status_code == 200:
+                    content = resp.content
+                    if len(content) > 5:
+                        df_raw = pd.read_csv(io.BytesIO(content), header=None)
+                        if not df_raw.empty and df_raw.shape[1] >= 8:
+                            first_cell = str(df_raw.iloc[0, 0]).strip().lower()
+                            second_cell = str(df_raw.iloc[0, 1]).strip().lower()
+                            
+                            # Cek apakah baris 0 adalah Header
+                            if first_cell == "id" or "tanggal" in second_cell:
+                                df = pd.read_csv(io.BytesIO(content))
+                            else:
+                                # Baris 0 adalah data langsung
+                                df = df_raw.copy()
+                                df.columns = COLUMNS[:df.shape[1]]
+                            
+                            # Normalisasi nilai desimal
+                            if "Kedalaman Aktual (m)" in df.columns:
+                                df["Kedalaman Aktual (m)"] = df["Kedalaman Aktual (m)"].apply(safe_float)
+                            if "Plan Kedalaman (m)" in df.columns:
+                                df["Plan Kedalaman (m)"] = df["Plan Kedalaman (m)"].apply(lambda x: safe_float(x, default=benchmark))
+                            else:
+                                df["Plan Kedalaman (m)"] = benchmark
+                                
+                            if "Tanggal" in df.columns:
+                                df["Tanggal"] = pd.to_datetime(df["Tanggal"], errors="coerce").dt.strftime("%Y-%m-%d").fillna(df["Tanggal"].astype(str))
+                                
+                            _CACHE_GSHEET[jetty_key] = df
+                            return df
+                    elif len(content) == 0:
+                        # Tab sheet masih kosong / baru dibuat
+                        return create_empty_template()
+            except Exception as e:
+                if attempt == 1:
+                    print(f"Error fetching Google Sheet for {jetty_key} (gid={gid}): {e}")
 
-def load_data(jetty_key: str = "senyiur") -> tuple[pd.DataFrame, str]:
+        # Fallback ke cache jika terjadi kendala jaringan sementara
+        if jetty_key in _CACHE_GSHEET and _CACHE_GSHEET[jetty_key] is not None:
+            return _CACHE_GSHEET[jetty_key]
+            
+        return None
+    except Exception as e:
+        print(f"Unexpected error in fetch_gsheet_public: {e}")
+        return None
+
+def load_data(jetty_key: str = "senyiur", *args, **kwargs) -> tuple[pd.DataFrame, str]:
     """
     Memuat data HANYA dari Google Spreadsheet Online untuk Jetty terpilih.
-    Tidak ada penyimpanan lokal.
+    Tidak ada penyimpanan lokal. Selalu mengembalikan tuple (pd.DataFrame, str).
     """
-    cfg = JETTY_CONFIG.get(jetty_key, JETTY_CONFIG["senyiur"])
-    gsheet_df = fetch_gsheet_public(jetty_key)
-    if gsheet_df is not None and not gsheet_df.empty:
-        return gsheet_df, f"Google Spreadsheet ({cfg['name']} — Tab: {cfg['sheet_name']})"
-        
-    return create_empty_template(), f"Google Spreadsheet ({cfg['name']} — Menunggu Data)"
+    try:
+        if not jetty_key and args:
+            jetty_key = args[0]
+        cfg = JETTY_CONFIG.get(str(jetty_key).lower().strip(), JETTY_CONFIG["senyiur"])
+        gsheet_df = fetch_gsheet_public(jetty_key)
+        if gsheet_df is not None and not gsheet_df.empty:
+            return gsheet_df, f"Google Spreadsheet ({cfg['name']} — Tab: {cfg['sheet_name']})"
+            
+        return create_empty_template(), f"Google Spreadsheet ({cfg['name']} — Menunggu Data)"
+    except Exception as e:
+        print(f"Error in load_data for {jetty_key}: {e}")
+        cfg = JETTY_CONFIG.get(str(jetty_key).lower().strip(), JETTY_CONFIG["senyiur"])
+        return create_empty_template(), f"Google Spreadsheet ({cfg['name']} — Offline/Menunggu Data)"
 
 def add_new_entry(entry_dict: dict, jetty_key: str = "senyiur") -> tuple[bool, str]:
     """

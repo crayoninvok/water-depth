@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import os
 import io
 import base64
@@ -145,8 +147,29 @@ st.markdown("""
 # ==========================================================
 # INISIALISASI & LOAD DATA KEDUA JETTY (SENYIUR & MUARA PAHU)
 # ==========================================================
-df_senyiur_raw, info_senyiur = data_manager.load_data("senyiur")
-df_muara_raw, info_muara = data_manager.load_data("muara_pahu")
+try:
+    df_senyiur_raw, info_senyiur = data_manager.load_data("senyiur")
+except TypeError:
+    try:
+        df_senyiur_raw, info_senyiur = data_manager.load_data()
+    except Exception as e:
+        df_senyiur_raw = data_manager.create_empty_template()
+        info_senyiur = f"Memuat data Senyiur ({e})"
+except Exception as e:
+    df_senyiur_raw = data_manager.create_empty_template()
+    info_senyiur = f"Memuat data Senyiur ({e})"
+
+try:
+    df_muara_raw, info_muara = data_manager.load_data("muara_pahu")
+except TypeError:
+    try:
+        df_muara_raw, info_muara = data_manager.load_data()
+    except Exception as e:
+        df_muara_raw = data_manager.create_empty_template()
+        info_muara = f"Memuat data Muara Pahu ({e})"
+except Exception as e:
+    df_muara_raw = data_manager.create_empty_template()
+    info_muara = f"Memuat data Muara Pahu ({e})"
 
 # ==========================================================
 # SIDEBAR
